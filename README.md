@@ -1,5 +1,6 @@
 # sa_imp_utils
-A set of thread-reading and -parsing utilities for use with the SA Forums. 
+A set of thread-reading and -parsing utilities for use with the SA Forums and 
+Imp Zone. 
 
 ## Setup: 
 - [Install python locally](https://wiki.python.org/moin/BeginnersGuide/Download)

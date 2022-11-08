@@ -1,5 +1,5 @@
 .venv/
 .vscode
-# config.ini
+config.ini
 __pycache__/
 scratch.py
