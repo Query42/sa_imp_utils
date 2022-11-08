@@ -5,7 +5,6 @@ dispatcher = Dispatcher()
 dispatcher.login(required = False)
 
 club_thread = Thread(dispatcher, dispatcher.izgc_thread_id())
-club_thread.page_number = 239
 
 # TODO: parse current trophies from club site and/or config
 tracked_trophies = {
