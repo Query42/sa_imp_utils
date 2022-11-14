@@ -78,7 +78,8 @@ class Thread:
 
         return new_posts
 
-    def report_new_trophies(self, eligible_trophies):
+    def report_new_trophies(self):
+        eligible_trophies = self.dispatcher.get_izgc_trophies()
         imp_trophies = {}
         post_list = self.new_posts()
 
@@ -92,7 +93,7 @@ class Thread:
                 imp_trophies[post.username] += trophies
 
         if imp_trophies:
-            print("******** NEW TROPHIES ********")
+            print("\n******** NEW TROPHIES ********")
             for imp, trophies in imp_trophies.items():
                 print(f"{imp}: {'; '.join(trophies)}")
         else:
@@ -168,9 +169,9 @@ class Post:
     def trophies(self, eligible_trophies):
         earned_trophies = []
         images = self.image_urls()
-        for trophy_id, trophy_text in eligible_trophies.items():
-            for image in images:
+        for image in images:
+            for trophy_id, trophy_data in eligible_trophies.items():
                 if re.search(f"i.imgur.com/{trophy_id}", image):
-                    earned_trophies.append(trophy_text)
+                    earned_trophies.append(trophy_data["full_name"])
 
         return earned_trophies

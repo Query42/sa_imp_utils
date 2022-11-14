@@ -4,6 +4,7 @@ import configparser
 import os
 
 import requests
+from bs4 import BeautifulSoup
 
 
 class InvalidConfigError(Exception):
@@ -52,9 +53,39 @@ class Dispatcher:
     def get_thread(self, **kwargs):
         return self.session.get(f"{self.SA_URL}showthread.php", **kwargs)
 
-    def izgc_thread_id(self):
-        return self.config["DEFAULT"]["izgc_thread_id"]
-
     def save_config(self):
         with open("config.ini", "w", encoding="utf-8") as file:
             self.config.write(file)
+
+    # IZGC Thread parsing-related methods
+    def izgc_thread_id(self):
+        return self.config["DEFAULT"]["izgc_thread_id"]
+
+    def get_izgc_trophies(self):
+        # This should probably be in a config file, but I'm not putting it
+        # there just so it's a little less visible to casual perusal.
+        IZGC_TROPHY_LIST_URL = "https://impzone.club/alltrophies.html"
+        trophy_dict = {}
+
+        # Could modularize this, but it's YAGNI for now
+        response = self.session.get(IZGC_TROPHY_LIST_URL)
+        soup = BeautifulSoup(response.text, "html.parser")
+
+        trophies = soup.find_all("div", "item-trophy tooltip")
+        for trophy in trophies:
+            try:
+                trophy_info_strings = tuple(trophy.stripped_strings)
+                game = trophy_info_strings[1]
+                name = trophy_info_strings[0]
+                trophy_data = {
+                    "full_name": f"[{game}] {name}",
+                    "game": game,
+                    "name": name,
+                    "system_year": trophy_info_strings[2]
+                }
+                trophy_dict[trophy["imgur_id"]] = trophy_data
+            except KeyError:
+                # No imgur id present, so we don't scan for it
+                continue
+
+        return trophy_dict
