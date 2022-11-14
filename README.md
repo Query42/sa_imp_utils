@@ -22,12 +22,15 @@ else.
 ## Currently working utilities:
 
 ### IZGC Trophy Scanner
-To run, call `python read_izgc_trophies.py` from the project root.
-Currently, this tool uses a hardcoded dictionary to parse trophies earned based 
-on the imgur address of the trophy image. These hardcoded values will need to be 
-manually updated in the `read_izgc_trophies.py` file until I find a better way 
-to do this.
+
+To run, call `python read_izgc_trophies.py` from the project root. This tool
+prints a list of imps and trophies earned since the previous execution. It also
+saves a record of new trophies earned to the local file
+`trophy_timestamps.json`
 
 The first time you run this utility, it will add the current end of the thread
-to the `config.ini` file and not find any new trophies. Subsequent runs will
-search for new trophies since the last run.
+to the `config.ini` file and not find any new trophies.
+
+You may run this command against all pages in the thread with
+`python read_izgc_trophies.py --all-pages`. This will find new trophies even if
+it is the first execution of the script.
