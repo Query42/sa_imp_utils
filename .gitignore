@@ -1,5 +1,9 @@
+# Project local files
+config.ini
+
+# Local env
 .venv/
 .vscode
-config.ini
 __pycache__/
 scratch.py
+.idea/

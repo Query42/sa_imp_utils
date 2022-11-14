@@ -6,12 +6,13 @@ from dataclasses import dataclass
 
 from bs4 import BeautifulSoup
 
+
 class ThreadNotFoundError(Exception):
     pass
 
+
 class Thread:
     def __init__(self, dispatcher, thread_id):
-        self.session = dispatcher.session
         self.dispatcher = dispatcher
         self.thread = thread_id
         try:
@@ -25,10 +26,8 @@ class Thread:
             self.update_config_values()
 
     def get_page(self):
-        # print(f"Fetching page {self.page_number} in thread {self.thread}.")
         payload = {"threadid": self.thread, "pagenumber": str(self.page_number)}
-        response = self.session.get(
-            "https://forums.somethingawful.com/showthread.php", params=payload)
+        response = self.dispatcher.get_thread(params=payload)
         raw_page = response.text
         if "Specified thread was not found in the live forums." in raw_page:
             raise ThreadNotFoundError(f"Thread {self.thread} not accessible.")
@@ -38,27 +37,22 @@ class Thread:
             return
         else:
             print(f"Parsing posts from thread {self.thread}, "
-            + f"page {self.page_number}")
+                  + f"page {self.page_number}")
             page = Page(raw_page)
             return page
 
     def get_last_page_number(self):
-        # TODO: fix this so it uses proper url parameterization
-        response = self.session.get(
-            "https://forums.somethingawful.com/showthread.php?threadid=" +
-            f"{self.thread}&goto=lastpost",
-            allow_redirects = False
-        )
+        payload = {"threadid": self.thread, "goto": "lastpost"}
+        response = self.dispatcher.get_thread(params=payload,
+                                              allow_redirects=False)
         url = response.headers["Location"]
         page_number = int(re.findall(r"pagenumber=(\d+)", url)[0])
 
         return page_number
 
     def new_posts(self):
-        # print(f"Fetching new posts from threadid {self.thread}.")
-
         new_posts = []
-        # TODO: refactor this to call self instead of while loop
+
         while True:
             page = self.get_page()
             if not page:
@@ -67,16 +61,15 @@ class Thread:
 
             new_last_post = len(page.posts)
             new_posts += page.posts[self.last_post:new_last_post]
-            if new_last_post >= 40:
-                # print(f"40 posts on page {self.page_number}.")
-                # print("Incrementing page number and resetting postcount.")
-                self.page_number += 1
-                self.last_post = 0
-                time.sleep(2)
-            else:
+            if new_last_post < 40:
                 # Last page of thread reached
                 self.last_post = new_last_post
                 break
+            else:
+                self.page_number += 1
+                self.last_post = 0
+                # Wait so as not to flood server with requests
+                time.sleep(1)
 
         if new_posts:
             self.update_config_values()
@@ -139,22 +132,29 @@ class Post:
         # Read posts have a first tr with class "seen1" or "seen2"
         # Unread posts have "altcolor1" or "altcolor2"
         # Use matching for unread so if this breaks all posts default to read
-        # Might be a better way to do this by parsing redirect
         self.unread = "altcolor" in raw_post.tr["class"][0]
 
         self.cells = raw_post.find_all("td")
-        user_info = self.cells[0]
-        self.username = user_info.dt.get_text()
-        # TODO: add handling for users with no avatar
-        # TODO: check behavior here for users with gangtags, etc
-        # Disabling for now as this may break for users with no avatar
-        # self.avatar_url = user_info.img["src"]
-        # TODO: fix this line
-        # self.timestamp = cells.get_text()
+        self.username = self.cells[0].dt.get_text()
+        self.avatar_url = self.get_avatar_url()
+        self.timestamp = self.get_timestamp()
         self.body = self.cells[1]
 
     def text(self):
         return self.body.get_text()
+
+    def get_timestamp(self):
+        raw = self.cells[2].text
+        # Remove the # and ? signs and extra whitespace
+        return raw.translate({35: None, 63: None}).strip()
+
+    def get_avatar_url(self):
+        # Always grabs actual avatar image. May need special case for Fungah!
+        try:
+            return self.cells[0].img["src"]
+        # User has no avatar
+        except TypeError:
+            return ""
 
     def remove_quotes(self):
         quotes = self.body.find_all("div", "bbc-block")
