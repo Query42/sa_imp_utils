@@ -1,7 +1,7 @@
 import sys
 
 from dispatcher import Dispatcher
-from trophy_scanner import report_new_trophies, IZGCThread
+from trophy_scanner import TrophyReporter, IZGCThread
 
 dispatcher = Dispatcher()
 dispatcher.login(required=False)
@@ -13,4 +13,5 @@ if "--all-pages" in sys.argv:
     club_thread.last_post = 0
 
 imp_trophies = club_thread.trophy_scan()
-report_new_trophies(imp_trophies)
+reporter = TrophyReporter(imp_trophies)
+reporter.report_new_trophies()

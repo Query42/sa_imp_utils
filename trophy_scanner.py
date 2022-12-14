@@ -8,35 +8,6 @@ from bs4 import BeautifulSoup
 from thread_reader import Thread
 
 
-def report_new_trophies(imp_trophies):
-    if not imp_trophies:
-        return print("No new trophies found.")
-
-    timestamp_file = "trophy_timestamps.json"
-    try:
-        with open(timestamp_file, "r") as file:
-            trophy_log = json.load(file)
-    except FileNotFoundError:
-        trophy_log = {}
-
-    print("\n******** NEW TROPHIES ********")
-    for imp, trophies in imp_trophies.items():
-        if imp not in trophy_log:
-            new_member_string = " (New Club member!)"
-            trophy_log[imp] = trophies
-        else:
-            new_member_string = ""
-            update_trophy_dict(trophy_log[imp], trophies)
-
-        print(f"{imp}{new_member_string}:")
-        for game, trophy in trophies.items():
-            for name, timestamp in trophy.items():
-                print(f"[{game}] {name} -- posted {timestamp}")
-
-    with open(timestamp_file, "w", encoding="utf-8") as file:
-        json.dump(trophy_log, file, indent=2)
-
-
 def get_izgc_master_trophy_dict(session):
     # This should probably be in a config file, but I'm not putting it
     # there just so it's a little less visible to casual perusal.
@@ -73,6 +44,44 @@ def update_trophy_dict(existing_trophies, new_trophies):
             existing_trophies[game] = game_trophies
         else:
             existing_trophies[game].update(game_trophies)
+
+
+class TrophyReporter:
+    def __init__(self, imp_trophies):
+        self.trophy_log_file = "trophy_timestamps.json"
+        self.imp_trophies = imp_trophies
+        self.trophy_log = self.read_trophy_log_file()
+
+    def read_trophy_log_file(self):
+        try:
+            with open(self.trophy_log_file, "r") as file:
+                return json.load(file)
+        except FileNotFoundError:
+            return {}
+
+    def write_trophy_log_to_file(self):
+        with open(self.trophy_log_file, "w", encoding="utf-8") as file:
+            json.dump(self.trophy_log, file, indent=2)
+
+    def report_new_trophies(self):
+        if not self.imp_trophies:
+            return print("No new trophies found.")
+
+        print("\n******** NEW TROPHIES ********")
+        for imp, trophies in self.imp_trophies.items():
+            if imp not in self.trophy_log:
+                new_member_string = " (New Club member!)"
+                self.trophy_log[imp] = trophies
+            else:
+                new_member_string = ""
+                update_trophy_dict(self.trophy_log[imp], trophies)
+
+            print(f"{imp}{new_member_string}:")
+            for game, trophy in trophies.items():
+                for name, timestamp in trophy.items():
+                    print(f"[{game}] {name} -- posted {timestamp}")
+
+            self.write_trophy_log_to_file()
 
 
 class IZGCThread(Thread):
