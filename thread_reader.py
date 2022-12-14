@@ -12,7 +12,7 @@ class ThreadNotFoundError(Exception):
 
 
 class Thread:
-    def __init__(self, dispatcher, thread_id):
+    def __init__(self, *, dispatcher, thread_id):
         self.dispatcher = dispatcher
         self.thread = thread_id
         try:
@@ -78,31 +78,6 @@ class Thread:
 
         return new_posts
 
-    def trophy_scan(self):
-        eligible_trophies = self.dispatcher.get_izgc_trophies()
-        imp_trophies = {}
-        post_list = self.new_posts()
-
-        for post in post_list:
-            post.remove_quotes()
-            new_trophies = post.trophies(eligible_trophies)
-            if new_trophies:
-                # TODO: Find a better way to handle this mess
-                if post.username not in imp_trophies:
-                    # Add user to trophy list
-                    imp_trophies[post.username] = new_trophies
-                else:
-                    for game, game_trophies in new_trophies.items():
-                        if game not in imp_trophies[post.username]:
-                            # Add game to user's trophy games
-                            imp_trophies[post.username][game] = game_trophies
-                        else:
-                            # Add trophy to user's game
-                            imp_trophies[post.username][game].update(
-                                game_trophies)
-
-        self.dispatcher.report_new_trophies(imp_trophies)
-
     def update_config_values(self):
         self.dispatcher.config[self.thread] = {
             "page": self.page_number,
@@ -136,7 +111,7 @@ class Post:
 
     def __init__(self, raw_post):
         self.raw_post = raw_post
-        # Read posts have a first tr with class "seen1" or "seen2"
+        # Read posts have a first "tr" with class "seen1" or "seen2"
         # Unread posts have "altcolor1" or "altcolor2"
         # Use matching for unread so if this breaks all posts default to read
         self.unread = "altcolor" in raw_post.tr["class"][0]
@@ -174,17 +149,3 @@ class Post:
     def image_urls(self):
         images = self.body.find_all("img")
         return list(map(lambda img: img["src"], images))
-
-    def trophies(self, eligible_trophies):
-        earned_trophies = {}
-        images = self.image_urls()
-        for image in images:
-            for trophy_id, trophy_data in eligible_trophies.items():
-                if re.search(f"i.imgur.com/{trophy_id}", image):
-                    entry = {trophy_data["name"]: self.timestamp}
-                    if trophy_data["game"] not in earned_trophies:
-                        earned_trophies[trophy_data["game"]] = entry
-                    else:
-                        earned_trophies[trophy_data["game"]].update(entry)
-
-        return earned_trophies
