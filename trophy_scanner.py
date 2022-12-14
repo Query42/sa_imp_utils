@@ -18,7 +18,8 @@ def get_izgc_master_trophy_dict(session):
     response = session.get(izgc_trophy_list_url)
     soup = BeautifulSoup(response.text, "html.parser")
 
-    trophies = soup.find_all("div", "item-trophy tooltip")
+    trophies = soup.find_all("div", attrs={
+        'class': re.compile('^item-trophy tooltip.*')})
     for trophy in trophies:
         try:
             trophy_info_strings = tuple(trophy.stripped_strings)
@@ -54,7 +55,7 @@ class TrophyReporter:
 
     def read_trophy_log_file(self):
         try:
-            with open(self.trophy_log_file, "r") as file:
+            with open(self.trophy_log_file, "r", encoding="utf-8") as file:
                 return json.load(file)
         except FileNotFoundError:
             return {}
@@ -65,7 +66,8 @@ class TrophyReporter:
 
     def report_new_trophies(self):
         if not self.imp_trophies:
-            return print("No new trophies found.")
+            print("No new trophies found.")
+            return
 
         print("\n******** NEW TROPHIES ********")
         for imp, trophies in self.imp_trophies.items():
