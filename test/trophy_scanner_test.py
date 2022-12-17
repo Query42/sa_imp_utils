@@ -8,6 +8,7 @@ def fixture_mock_trophy_log():
     pass
 
 
+# WIP
 class TestTrophyReporter:
     def test_no_trophies_prints(self, capsys):
         trophy_scanner.report_new_trophies(None)
