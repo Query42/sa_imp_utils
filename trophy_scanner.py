@@ -80,8 +80,9 @@ class TrophyReporter:
 
             print(f"{imp}{new_member_string}:")
             for game, trophy in trophies.items():
-                for name, timestamp in trophy.items():
-                    print(f"[{game}] {name} -- posted {timestamp}")
+                for name, post in trophy.items():
+                    print(f"[{game}] {name} -- posted {post['timestamp']}")
+                    print(post["link"])
 
             self.write_trophy_log_to_file()
 
@@ -120,7 +121,10 @@ class IZGCThread(Thread):
             for trophy_id, trophy_data in self.eligible_trophies.items():
                 if re.search(f"i.imgur.com/{trophy_id}", image):
                     new_trophy = {trophy_data["game"]: {
-                        trophy_data["name"]: post.timestamp}}
+                        trophy_data["name"]: {
+                            "timestamp": post.timestamp,
+                            "link": post.link()
+                        }}}
                     update_trophy_dict(earned_trophies, new_trophy)
 
         return earned_trophies

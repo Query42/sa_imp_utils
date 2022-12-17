@@ -31,15 +31,16 @@ class Thread:
         raw_page = response.text
         if "Specified thread was not found in the live forums." in raw_page:
             raise ThreadNotFoundError(f"Thread {self.thread} not accessible.")
-        elif "The page number you requested" in raw_page:
+
+        if "The page number you requested" in raw_page:
             print("Last page of thread reached.")
             self.page_number -= 1
-            return
-        else:
-            print(f"Parsing posts from thread {self.thread}, "
-                  + f"page {self.page_number}")
-            page = Page(raw_page)
-            return page
+            return None
+
+        print(f"Parsing posts from thread {self.thread}, "
+              + f"page {self.page_number}")
+        page = Page(raw_page, self.thread, self.page_number)
+        return page
 
     def get_last_page_number(self):
         payload = {"threadid": self.thread, "goto": "lastpost"}
@@ -65,11 +66,11 @@ class Thread:
                 # Last page of thread reached
                 self.last_post = new_last_post
                 break
-            else:
-                self.page_number += 1
-                self.last_post = 0
-                # Wait so as not to flood server with requests
-                time.sleep(1)
+
+            self.page_number += 1
+            self.last_post = 0
+            # Wait so as not to flood server with requests
+            time.sleep(1)
 
         if new_posts:
             self.update_config_values()
@@ -88,42 +89,52 @@ class Thread:
 
 @dataclass
 class Page:
-    def __init__(self, raw_page):
-        soup = BeautifulSoup(raw_page, "html.parser")
+    def __init__(self, raw_page, thread, number):
+        self.thread = thread
+        self.number = number
+        self.soup = BeautifulSoup(raw_page, "html.parser")
         self.posts = []
         self.unread_posts = []
+        self.last_unread_post = None
         self.read_posts = []
 
-        raw_posts = soup.find_all("table")
+        raw_posts = self.soup.find_all("table")
         for raw_post in raw_posts:
-            post = Post(raw_post)
+            post = Post(raw_post, self.thread, self.number)
             if post.username == "Adbot":
                 continue
             self.posts.append(post)
-            if post.unread:
+            if post.unread():
                 self.unread_posts.append(post)
+                self.last_unread_post = post
             else:
                 self.read_posts.append(post)
 
 
+# pylint: disable=too-many-instance-attributes
 class Post:
     CELL_TAG = "td"
 
-    def __init__(self, raw_post):
+    def __init__(self, raw_post, thread, page_number):
         self.raw_post = raw_post
-        # Read posts have a first "tr" with class "seen1" or "seen2"
-        # Unread posts have "altcolor1" or "altcolor2"
-        # Use matching for unread so if this breaks all posts default to read
-        self.unread = "altcolor" in raw_post.tr["class"][0]
+        self.thread = thread
+        self.page_number = page_number
 
-        self.cells = raw_post.find_all(self.CELL_TAG)
-        self.username = raw_post.find(self.CELL_TAG, "userinfo").dt.text
-        self.avatar_url = self.get_avatar_url()
+        self.cells = self.raw_post.find_all(self.CELL_TAG)
+        self.username = self.raw_post.find(self.CELL_TAG, "userinfo").dt.text
+        self.post_id = self.raw_post["id"]
+        self.index = self.raw_post["data-idx"]
         self.timestamp = self.get_timestamp()
-        self.body = raw_post.find(self.CELL_TAG, "postbody")
+        self.body = self.raw_post.find(self.CELL_TAG, "postbody")
 
     def text(self):
         return self.body.get_text()
+
+    def unread(self):
+        # Read posts have a first "tr" with class "seen1" or "seen2"
+        # Unread posts have "altcolor1" or "altcolor2"
+        # Use matching for unread so if this breaks all posts default to read
+        return "altcolor" in self.raw_post.tr["class"][0]
 
     def get_timestamp(self):
         try:
@@ -149,3 +160,8 @@ class Post:
     def image_urls(self):
         images = self.body.find_all("img")
         return list(map(lambda img: img["src"], images))
+
+    def link(self):
+        return f"https://forums.somethingawful.com/showthread.php?threadid=" \
+               f"{self.thread}&userid=0&perpage=40&pagenumber=" \
+               f"{self.page_number}#{self.post_id}"
