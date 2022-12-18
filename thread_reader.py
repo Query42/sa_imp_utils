@@ -27,8 +27,10 @@ class Thread:
             self.last_post = int(thread_attrs["last_post"])
         except KeyError:
             print("No previous endpoint of thread in config. Saving new end.")
+            self.get_last_read_index()
             self.page_number = self.get_last_page_number()
-            self.last_post = len(self.get_page().posts)
+            self.last_post = self.get_last_post()
+            self.set_last_read()
             self.update_config_values()
 
     def get_raw_page(self, page_number):
@@ -52,12 +54,15 @@ class Thread:
         return page
 
     def get_last_page_number(self):
-        self.get_last_read_index()
         payload = {"threadid": self.thread, "goto": "lastpost"}
         response = self.dispatcher.get_thread(params=payload,
                                               allow_redirects=False)
-        self.set_last_read()
         return scrape_page_number(response)
+
+    def get_last_post(self):
+        raw_page = self.get_raw_page(self.page_number).text
+        page = Page(raw_page, self.thread, self.page_number)
+        return len(page.posts)
 
     def new_posts(self):
         new_posts = []
