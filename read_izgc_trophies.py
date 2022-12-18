@@ -16,10 +16,9 @@ class InvalidArgumentError(Exception):
 if "--all-pages" in sys.argv:
     club_thread.page_number = 1
     club_thread.last_post = 0
-# TODO: clean this up
 elif len(sys.argv) > 1:
     if sys.argv[1] == "--start-page":
-        USAGE_MESSAGE = "Usage is: read_izgc_trophies --start-page {page number}"
+        USAGE_MESSAGE = "Usage: read_izgc_trophies --start-page {page number}"
         try:
             club_thread.page_number = int(sys.argv[2])
             club_thread.last_post = 0
