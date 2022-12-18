@@ -42,6 +42,7 @@ class Thread:
         page = Page(raw_page, self.thread, self.page_number)
         return page
 
+    # This method still marks the whole thread read
     def get_last_page_number(self):
         payload = {"threadid": self.thread, "goto": "lastpost"}
         response = self.dispatcher.get_thread(params=payload,
@@ -53,12 +54,16 @@ class Thread:
 
     def new_posts(self):
         new_posts = []
+        last_read_post = None
 
         while True:
             page = self.get_page()
             if not page:
                 # Last page of thread reached, has 40 posts
                 break
+
+            if page.read_posts:
+                last_read_post = page.read_posts[-1]
 
             new_last_post = len(page.posts)
             new_posts += page.posts[self.last_post:new_last_post]
@@ -77,7 +82,15 @@ class Thread:
         else:
             print(f"No new posts in thread {self.thread}.")
 
+        if last_read_post:
+            self.set_last_read(last_read_post.index)
+
         return new_posts
+
+    def set_last_read(self, index):
+        if self.dispatcher.logged_in:
+            self.dispatcher.get_thread(params={
+                "action": "setseen", "threadid": self.thread, "index": index})
 
     def update_config_values(self):
         self.dispatcher.config[self.thread] = {
@@ -95,7 +108,6 @@ class Page:
         self.soup = BeautifulSoup(raw_page, "html.parser")
         self.posts = []
         self.unread_posts = []
-        self.last_unread_post = None
         self.read_posts = []
 
         raw_posts = self.soup.find_all("table")
@@ -106,7 +118,6 @@ class Page:
             self.posts.append(post)
             if post.unread():
                 self.unread_posts.append(post)
-                self.last_unread_post = post
             else:
                 self.read_posts.append(post)
 

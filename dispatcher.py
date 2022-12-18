@@ -22,6 +22,7 @@ class Dispatcher:
         if not os.path.isfile(self.CONFIG_FILE):
             raise InvalidConfigError(f"{self.CONFIG_FILE} is missing!")
         self.config.read(self.CONFIG_FILE)
+        self.logged_in = False
 
     def check_sa_creds(self):
         if "username" not in self.config["DEFAULT"] \
@@ -32,16 +33,20 @@ class Dispatcher:
                 f"username and password not present in {self.CONFIG_FILE}.")
 
     def login(self, required=True):
+        if self.logged_in:
+            return
+
         try:
             self.check_sa_creds()
         except InvalidConfigError:
             if required:
                 raise
-            else:
-                return print(
-                    "Warning! Cannot proceed with login, continuing as " +
-                    "anonymous user."
-                )
+
+            print(
+                "Warning! Cannot proceed with login, continuing as " +
+                "anonymous user."
+            )
+            return
 
         info = {"username": self.config["DEFAULT"]["username"],
                 "password": self.config["DEFAULT"]["password"],
@@ -49,6 +54,7 @@ class Dispatcher:
                 }
         self.session.post(
             f"{self.SA_URL}account.php", data=info)
+        self.logged_in = True
 
     def get_thread(self, **kwargs):
         return self.session.get(f"{self.SA_URL}showthread.php", **kwargs)
