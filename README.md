@@ -13,19 +13,10 @@ Imp Zone.
     filter out posts by Adbot, so those shouldn't affect the results. Shouldn't
     be necessary for the trophy scanning functionality (unless the paywall is
     up...)
-  - If you do enter your credentials, be aware that when the utilities scan a
-    thread for the first time, they will mark it as read for your account. You
-    can avoid this by manually putting a page to start from for a given thread
-    into your `config.ini` file like so:  
-    [3991238]  
-    page = 336  
-    last_post = 0
   - If you are logged in, the utilities will attempt to set your last read
-    post to where it was prior to running them. They will not be able to do
-    this if for some reason your last read post on the forums is before the
-    page set as the first page in the config file (for instance, if your last
-    read post is on page 50 and the utilities start reading from page 60, they
-    will mark the whole thread read because they will not know where to reset)
+    post in a given thread to where it was prior to running them. There's no
+    way to mark a thread as completely unread, so if it was previously unread
+    it will mark the first post as last read.
 
 ---
 
@@ -39,12 +30,11 @@ saves a record of new trophies earned to the local file
 `trophy_timestamps.json`
 
 The first time you run this utility, it will add the current end of the thread
-to the `config.ini` file and not find any new trophies (unless you manually set
-a thread start point as detailed above).
+to the `config.ini` file and not find any new trophies unless you run all pages
+or specify a starting page (see below).
 
 You may run this command against all pages in the thread with
-`python read_izgc_trophies.py --all-pages`. This will find new trophies even if
-it is the first execution of the script.
+`python read_izgc_trophies.py --all-pages`.
 
 You may also run this command starting at a set page with
 `python read_izgc_trophies.py --start-page {page number}`.
