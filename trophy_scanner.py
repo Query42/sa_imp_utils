@@ -81,8 +81,8 @@ class TrophyReporter:
             print(f"{imp}{new_member_string}:")
             for game, trophy in trophies.items():
                 for name, post in trophy.items():
-                    print(f"[{game}] {name} -- posted {post['timestamp']}")
-                    print(post["link"])
+                    print(f"  [{game}] {name} -- posted {post['timestamp']}")
+                    print(f"  {post['link']}\n")
 
             self.write_trophy_log_to_file()
 

@@ -11,10 +11,16 @@ class ThreadNotFoundError(Exception):
     pass
 
 
+def scrape_page_number(response):
+    url = response.headers["Location"]
+    return int(re.findall(r"pagenumber=(\d+)", url)[0])
+
+
 class Thread:
     def __init__(self, *, dispatcher, thread_id):
         self.dispatcher = dispatcher
         self.thread = thread_id
+        self.last_read_index = None
         try:
             thread_attrs = dispatcher.config[self.thread]
             self.page_number = int(thread_attrs["page"])
@@ -25,10 +31,13 @@ class Thread:
             self.last_post = len(self.get_page().posts)
             self.update_config_values()
 
+    def get_raw_page(self, page_number):
+        payload = {
+            "threadid": self.thread, "pagenumber": str(page_number)}
+        return self.dispatcher.get_thread(params=payload)
+
     def get_page(self):
-        payload = {"threadid": self.thread, "pagenumber": str(self.page_number)}
-        response = self.dispatcher.get_thread(params=payload)
-        raw_page = response.text
+        raw_page = self.get_raw_page(self.page_number).text
         if "Specified thread was not found in the live forums." in raw_page:
             raise ThreadNotFoundError(f"Thread {self.thread} not accessible.")
 
@@ -42,28 +51,23 @@ class Thread:
         page = Page(raw_page, self.thread, self.page_number)
         return page
 
-    # This method still marks the whole thread read
     def get_last_page_number(self):
+        self.get_last_read_index()
         payload = {"threadid": self.thread, "goto": "lastpost"}
         response = self.dispatcher.get_thread(params=payload,
                                               allow_redirects=False)
-        url = response.headers["Location"]
-        page_number = int(re.findall(r"pagenumber=(\d+)", url)[0])
-
-        return page_number
+        self.set_last_read()
+        return scrape_page_number(response)
 
     def new_posts(self):
         new_posts = []
-        last_read_post = None
+        self.get_last_read_index()
 
         while True:
             page = self.get_page()
             if not page:
                 # Last page of thread reached, has 40 posts
                 break
-
-            if page.read_posts:
-                last_read_post = page.read_posts[-1]
 
             new_last_post = len(page.posts)
             new_posts += page.posts[self.last_post:new_last_post]
@@ -82,15 +86,41 @@ class Thread:
         else:
             print(f"No new posts in thread {self.thread}.")
 
-        if last_read_post:
-            self.set_last_read(last_read_post.index)
-
+        self.set_last_read()
         return new_posts
 
-    def set_last_read(self, index):
+    def get_last_read_index(self):
+        if not self.dispatcher.logged_in:
+            return
+
+        page_num_response = self.dispatcher.get_thread(
+            params={"threadid": self.thread, "goto": "newpost"},
+            allow_redirects=False)
+        unread_page_number = scrape_page_number(page_num_response)
+
+        page_response = self.get_raw_page(unread_page_number)
+        page = Page(page_response.text, self.thread, unread_page_number)
+        if page.read_posts:
+            self.last_read_index = page.read_posts[-1].index
+        else:
+            # Last read post was last post of prev page, or thread is unread
+            prev_page_number = unread_page_number - 1
+            prev_page_response = self.get_raw_page(prev_page_number)
+            prev_page = Page(
+                prev_page_response.text, self.thread, prev_page_number)
+            if prev_page.read_posts:
+                self.last_read_index = prev_page.read_posts[-1].index
+            else:
+                # Thread is unread. Best we can do is set it to one read post
+                self.last_read_index = 1
+
+    def set_last_read(self):
         if self.dispatcher.logged_in:
             self.dispatcher.get_thread(params={
-                "action": "setseen", "threadid": self.thread, "index": index})
+                "action": "setseen",
+                "threadid": self.thread,
+                "index": self.last_read_index
+            })
 
     def update_config_values(self):
         self.dispatcher.config[self.thread] = {
