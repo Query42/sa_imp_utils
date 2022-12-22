@@ -64,7 +64,7 @@ class Thread:
 
     def get_last_post(self):
         raw_page = self.get_raw_page(self.page_number).text
-        page = Page(raw_page, self.thread, self.page_number)
+        page = Page(raw_page)
         return len(page.posts)
 
     def new_posts(self):
