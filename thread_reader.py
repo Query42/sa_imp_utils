@@ -104,20 +104,31 @@ class Thread:
         unread_page_number = scrape_page_number(page_num_response)
 
         page_response = self.get_raw_page(unread_page_number)
+
+        with open("page1.html", "w", encoding="utf-8") as file:
+            file.write(page_response.text)
+
         page = Page(page_response.text, self.thread, unread_page_number)
         if page.read_posts:
             self.last_read_index = page.read_posts[-1].index
+            print(f"*DEBUG*: Last post index found at {self.last_read_index}.")
         else:
             # Last read post was last post of prev page, or thread is unread
             prev_page_number = unread_page_number - 1
             prev_page_response = self.get_raw_page(prev_page_number)
+
+            with open("page2.html", "w", encoding="utf-8") as file:
+                file.write(page_response.text)
+
             prev_page = Page(
                 prev_page_response.text, self.thread, prev_page_number)
             if prev_page.read_posts:
                 self.last_read_index = prev_page.read_posts[-1].index
+                print(f"*DEBUG*: Last post index found at {self.last_read_index}.")
             else:
                 # Thread is unread. Best we can do is set it to one read post
                 self.last_read_index = 1
+                print(f"*DEBUG*: Last post index not found.")
 
     def set_last_read(self):
         if self.dispatcher.logged_in:
