@@ -2,7 +2,6 @@
 
 import re
 import time
-from dataclasses import dataclass
 
 from bs4 import BeautifulSoup
 
@@ -11,9 +10,13 @@ class ThreadNotFoundError(Exception):
     pass
 
 
-def scrape_page_number(response):
+def scrape_redirect_url(response, pattern):
     url = response.headers["Location"]
-    return int(re.findall(r"pagenumber=(\d+)", url)[0])
+    return int(re.findall(pattern, url)[0])
+
+
+def scrape_page_number(response):
+    return scrape_redirect_url(response, r"pagenumber=(\d+)")
 
 
 class Thread:
@@ -50,7 +53,7 @@ class Thread:
 
         print(f"Parsing posts from thread {self.thread}, "
               + f"page {self.page_number}")
-        page = Page(raw_page, self.thread, self.page_number)
+        page = Page(raw_page)
         return page
 
     def get_last_page_number(self):
@@ -94,33 +97,35 @@ class Thread:
         self.set_last_read()
         return new_posts
 
+    # This method assumes that the thread has been read at some point.
+    # If the thread is totally unread, it will set the last-read marker such
+    # that reading the thread will load the current last page's first post.
+
     def get_last_read_index(self):
+        # https://forums.somethingawful.com/showthread.php?threadid=3991238&goto=newpost
+        # showthread.php?noseen=0&threadid=3991238&perpage=40&pagenumber=347#pti2
         if not self.dispatcher.logged_in:
             return
 
-        page_num_response = self.dispatcher.get_thread(
+        response = self.dispatcher.get_thread(
             params={"threadid": self.thread, "goto": "newpost"},
             allow_redirects=False)
-        unread_page_number = scrape_page_number(page_num_response)
 
-        page_response = self.get_raw_page(unread_page_number)
-        page = Page(page_response.text, self.thread, unread_page_number)
-        if page.read_posts:
-            self.last_read_index = page.read_posts[-1].index
-        else:
-            # Last read post was last post of prev page, or thread is unread
-            prev_page_number = unread_page_number - 1
-            prev_page_response = self.get_raw_page(prev_page_number)
-            prev_page = Page(
-                prev_page_response.text, self.thread, prev_page_number)
-            if prev_page.read_posts:
-                self.last_read_index = prev_page.read_posts[-1].index
-            else:
-                # Thread is unread. Best we can do is set it to one read post
-                self.last_read_index = 1
+        try:
+            post_number = scrape_redirect_url(response, r"#pti(\d+)")
+            posts_per_page = scrape_redirect_url(response, r"perpage=(\d+)")
+            page_number = scrape_page_number(response)
+
+            self.last_read_index = ((posts_per_page * (page_number - 1))
+                                    + post_number - 1)
+            return
+
+        except IndexError:
+            # post number doesn't exist in url, page will redirect to last post
+            return
 
     def set_last_read(self):
-        if self.dispatcher.logged_in:
+        if self.dispatcher.logged_in and self.last_read_index:
             self.dispatcher.get_thread(params={
                 "action": "setseen",
                 "threadid": self.thread,
@@ -135,19 +140,21 @@ class Thread:
         self.dispatcher.save_config()
 
 
-@dataclass
 class Page:
-    def __init__(self, raw_page, thread, number):
-        self.thread = thread
-        self.number = number
+    def __init__(self, raw_page):
         self.soup = BeautifulSoup(raw_page, "html.parser")
+        self.thread = self.soup.body["data-thread"]
         self.posts = []
         self.unread_posts = []
         self.read_posts = []
+        self.parse_posts()
 
+    # Posts will currently all return as unread if the user does not have the
+    # option selected to mark read posts in a different color.
+    def parse_posts(self):
         raw_posts = self.soup.find_all("table")
         for raw_post in raw_posts:
-            post = Post(raw_post, self.thread, self.number)
+            post = Post(raw_post)
             if post.username == "Adbot":
                 continue
             self.posts.append(post)
@@ -156,21 +163,21 @@ class Page:
             else:
                 self.read_posts.append(post)
 
+    def number(self):
+        return int(self.soup.find("option", selected="selected")["value"])
 
-# pylint: disable=too-many-instance-attributes
+
 class Post:
     CELL_TAG = "td"
 
-    def __init__(self, raw_post, thread, page_number):
+    def __init__(self, raw_post):
         self.raw_post = raw_post
-        self.thread = thread
-        self.page_number = page_number
 
         self.cells = self.raw_post.find_all(self.CELL_TAG)
         self.username = self.raw_post.find(self.CELL_TAG, "userinfo").dt.text
-        self.post_id = self.raw_post["id"]
+        # id attribute has "post" at the beginning, so we strip it
+        self.post_id = self.raw_post["id"][4::]
         self.index = self.raw_post["data-idx"]
-        self.timestamp = self.get_timestamp()
         self.body = self.raw_post.find(self.CELL_TAG, "postbody")
 
     def text(self):
@@ -182,7 +189,7 @@ class Post:
         # Use matching for unread so if this breaks all posts default to read
         return "altcolor" in self.raw_post.tr["class"][0]
 
-    def get_timestamp(self):
+    def timestamp(self):
         try:
             raw = self.raw_post.find(self.CELL_TAG, "postdate").text
             # Remove the # and ? signs and extra whitespace
@@ -208,6 +215,5 @@ class Post:
         return list(map(lambda img: img["src"], images))
 
     def link(self):
-        return f"https://forums.somethingawful.com/showthread.php?threadid=" \
-               f"{self.thread}&userid=0&perpage=40&pagenumber=" \
-               f"{self.page_number}#{self.post_id}"
+        return "https://forums.somethingawful.com/showthread.php?goto=post&" \
+               f"postid={self.post_id}#post{self.post_id}"
