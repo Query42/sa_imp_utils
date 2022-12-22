@@ -122,7 +122,7 @@ class IZGCThread(Thread):
                 if re.search(f"i.imgur.com/{trophy_id}", image):
                     new_trophy = {trophy_data["game"]: {
                         trophy_data["name"]: {
-                            "timestamp": post.timestamp,
+                            "timestamp": post.timestamp(),
                             "link": post.link()
                         }}}
                     update_trophy_dict(earned_trophies, new_trophy)
